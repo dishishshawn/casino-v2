@@ -1,0 +1,73 @@
+# casino-v2 default research config
+# All parameters are research knobs. This is a BACKTEST-ONLY config: no keys,
+# no live routing. See README for the staged validation gauntlet these feed.
+
+data:
+  # ccxt venue used for public market data (no API keys needed for OHLCV/funding).
+  # universe.py falls back across this list if a venue is geo-blocked.
+  venues: ["binanceusdm", "bybit", "okx"]
+  quote: "USDT"
+  timeframe: "1h"            # bar size for signals/backtest
+  # Liquid large-cap perp universe. BTC/ETH treated as correlated in sizing.
+  universe: ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT", "XRP/USDT:USDT"]
+  start: "2021-01-01T00:00:00Z"
+  end: null                  # null => now
+  cache_dir: "data_cache"
+  # Externally-supplied delisted symbols to include (survivorship-bias mitigation).
+  # ccxt only lists CURRENTLY-LIVE perps; leaving this empty biases momentum upward.
+  delisted_symbols: []
+
+signal:
+  # TSMOM on each instrument's own past return. Shorter lookbacks than the equity
+  # 12-month, per the brief (crypto momentum favors days-to-weeks). In bars.
+  lookbacks_hours: [72, 168, 336, 720]   # ~3d, 7d, 14d, 30d
+  vol_lookback_hours: 168                 # vol used to risk-normalize the trend score
+  # Long/short symmetric. score in [-1, 1] via tanh of the vol-normalized trend.
+  score_cap: 1.0
+
+costs:
+  taker_fee_bps: 4.0        # ~2-5 bps on major venues
+  half_spread_bps: 1.0      # half the bid/ask spread paid on a market cross
+  # Adverse slippage: momentum DEMANDS liquidity in the direction price is moving.
+  # Modeled as base + impact * (turnover fraction). Not mid-price fills.
+  slippage_base_bps: 1.0
+  slippage_impact_bps: 5.0
+  # Funding is applied on held notional across funding timestamps.
+  funding_interval_hours: 8
+  # If exchange funding history is unavailable, assume this constant per-interval rate.
+  default_funding_rate: 0.0001   # 0.01% / 8h ~= 10.95% annualized
+
+risk:
+  target_annual_vol: 0.12    # modest portfolio vol target (10-15% band)
+  vol_forecast_halflife_hours: 72
+  kelly_fraction: 0.35       # quarter-to-half Kelly
+  max_gross_leverage: 3.0    # effective leverage cap (<=3x per brief)
+  max_position_weight: 1.0   # per-instrument gross weight cap (fraction of equity)
+  # Correlation-aware total-risk: instruments in the same cluster share a risk budget
+  # so highly-correlated BTC/ETH are not sized independently.
+  correlation_lookback_hours: 720
+  bars_per_year: 8760        # hourly bars
+
+backtest:
+  init_cash: 100000.0
+  sharpe_haircut: 0.5        # display a ~50%-haircut "believed" Sharpe alongside raw
+  oos_holdout_frac: 0.25     # final fraction reserved, untouched during research
+
+validation:
+  # Purge/embargo for non-IID financial labels (Lopez de Prado).
+  label_horizon_bars: 24     # forward horizon of the signal's implicit label
+  embargo_frac: 0.01
+  # CPCV: N groups, test all combinations of k -> distribution of OOS paths.
+  cpcv_n_groups: 8
+  cpcv_k_test: 2
+  # Honest multiple-testing: number of strategy configs tried (deflates the Sharpe).
+  n_trials: 20
+  # Go/no-go gate.
+  min_deflated_sharpe: 0.0   # DSR must be clearly > 0 (prob > 0.95 handled in code)
+  max_pbo: 0.5               # Probability of Backtest Overfitting must be below this
+  # Regime windows to stress in walk-forward (inclusive dates).
+  regimes:
+    - { name: "2021_bull", start: "2021-01-01", end: "2021-11-10" }
+    - { name: "2022_bear", start: "2021-11-11", end: "2022-12-31" }
+    - { name: "2023_2024_recovery", start: "2023-01-01", end: "2024-12-31" }
+    - { name: "2025_incl_oct_cascade", start: "2025-01-01", end: "2025-12-31" }
