@@ -83,7 +83,8 @@ Runs are hashed (`casino.config.config_hash`) for reproducibility.
 - **Network egress.** Live data fetch requires an environment whose egress policy
   allows the exchange domains (Binance/Bybit/OKX). Where that is blocked, use
   `--synthetic` to exercise the full pipeline offline. Synthetic mode is a pipeline
-  test **only** — it is not a real edge.
+  test **only** — it is not a real edge. See [NETWORK.md](NETWORK.md) for the exact
+  allowlist and mobile setup steps.
 - **Deferred (later phases).** Execution/OMS, maker/taker routing, regime kill-switch,
   monitoring, testnet paper trading, and live keys are out of scope for this build.
 
