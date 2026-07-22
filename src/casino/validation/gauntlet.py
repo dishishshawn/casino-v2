@@ -20,9 +20,10 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from casino.backtest import delta_neutral, engine, metrics
+from casino.backtest import delta_neutral, engine, metrics, vrp_timing
 from casino.costs.model import CostModel
 from casino.costs.model import from_config as cost_from_config
+from casino.data import dvol as dvol_data
 from casino.risk import sizing
 from casino.signals import carry, tsmom
 from casino.validation import cpcv, deflated_sharpe
@@ -35,9 +36,12 @@ def _sleeve_returns(
     cfg: dict,
     cm: CostModel,
 ) -> pd.Series:
-    """Net return series for a single sleeve ('tsmom', 'carry', or 'dn_carry')."""
+    """Net return series for a single sleeve: 'tsmom' | 'carry' | 'dn_carry' | 'vrp'."""
     if which == "dn_carry":
         return delta_neutral.dn_carry_returns(funding, cm, cfg)
+    if which == "vrp":
+        dvol = dvol_data.load_dvol(cfg, cfg.get("vrp", {}).get("currency", "BTC"))
+        return vrp_timing.vrp_timing_returns(prices, dvol, cm, cfg)
     if which == "carry":
         scores = carry.from_config(cfg, funding).scores(prices)
     else:
@@ -63,14 +67,33 @@ def strategy_returns(
     """
     cm = cost_model if cost_model is not None else cost_from_config(cfg)
     kind = cfg.get("signal", {}).get("kind", "tsmom")
-    if kind in ("carry", "dn_carry"):
+    if kind in ("carry", "dn_carry", "vrp"):
         return _sleeve_returns(kind, prices, funding, cfg, cm)
     if kind == "combo":
         w = float(cfg["signal"].get("combo_carry_weight", 0.5))
         r_mom = _sleeve_returns("tsmom", prices, funding, cfg, cm)
         r_car = _sleeve_returns("carry", prices, funding, cfg, cm)
         return ((1.0 - w) * r_mom + w * r_car).rename("net")
+    if kind == "blend":
+        sleeves = cfg["signal"].get("sleeves", ["tsmom"])
+        streams = [_sleeve_returns(s, prices, funding, cfg, cm) for s in sleeves]
+        return _equal_risk_blend(streams, cfg).rename("net")
     return _sleeve_returns("tsmom", prices, funding, cfg, cm)
+
+
+def _equal_risk_blend(streams: list[pd.Series], cfg: dict) -> pd.Series:
+    """Average sleeve returns after scaling each to the target vol with a CAUSAL
+    trailing-vol estimate, so no single sleeve dominates by having higher raw vol."""
+    bpy = int(cfg["risk"]["bars_per_year"])
+    target = float(cfg["risk"]["target_annual_vol"])
+    win = int(cfg["signal"].get("blend_vol_hours", 720))  # trailing vol window (~30d)
+    scaled = []
+    for s in streams:
+        vol = s.rolling(win, min_periods=win // 2).std().shift(1) * (bpy ** 0.5)
+        sc = (target / vol.clip(lower=1e-4)).clip(upper=3.0)
+        scaled.append(s * sc)
+    df = pd.concat(scaled, axis=1)
+    return df.mean(axis=1)
 
 
 def _candidate_configs(cfg: dict) -> list[dict]:
@@ -93,6 +116,19 @@ def _candidate_configs(cfg: dict) -> list[dict]:
             c.setdefault("carry", {})
             c["carry"]["lookback_hours"] = lb
             c["carry"]["carry_ref_annual"] = ref
+            out.append(c)
+            if len(out) >= n_trials:
+                return out
+        return out
+
+    if kind == "vrp":
+        rvs = [84, 168, 336, 504]
+        zws = [360, 720, 1080, 1440, 2160]
+        for rv, zw in itertools.product(rvs, zws):
+            c = _clone(cfg)
+            c.setdefault("vrp", {})
+            c["vrp"]["realized_vol_hours"] = rv
+            c["vrp"]["zscore_hours"] = zw
             out.append(c)
             if len(out) >= n_trials:
                 return out

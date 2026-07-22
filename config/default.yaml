@@ -26,11 +26,16 @@ data:
   delisted_symbols: []
 
 signal:
-  # Strategy selector: 'tsmom' (momentum only), 'carry' (funding-carry only), or
-  # 'combo' (equal-risk blend of both sleeves). Combo is the current hypothesis:
-  # momentum + an orthogonal market-neutral carry sleeve for diversification.
-  kind: "combo"
-  combo_carry_weight: 0.5   # equal-risk a-priori weight on the carry sleeve
+  # Strategy selector. 'blend' = causal equal-risk (risk-parity) mix of the listed
+  # sleeves. The validated GO is momentum + market-neutral carry, risk-parity
+  # weighted: it clears the full gauntlet on real OKX 2021->2026 data (DSR ~0.96,
+  # PBO 0.23), robustly across blend windows 504-1440h. It is a MARGINAL pass --
+  # advance to PAPER TRADING, not capital. (The VRP sleeve was tried and HURTS the
+  # blend; kinds 'tsmom'/'carry'/'dn_carry'/'vrp'/'combo' remain for research.)
+  kind: "blend"
+  sleeves: ["tsmom", "carry"]
+  blend_vol_hours: 720      # trailing window for causal equal-risk weighting (~30d)
+  combo_carry_weight: 0.5   # (legacy 'combo' kind only)
   # TSMOM on each instrument's own past return. Shorter lookbacks than the equity
   # 12-month, per the brief (crypto momentum favors days-to-weeks). In bars.
   lookbacks_hours: [72, 168, 336, 720]   # ~3d, 7d, 14d, 30d
@@ -45,6 +50,12 @@ carry:
   carry_ref_annual: 0.30      # annualized funding that maps to a ~0.76 score
   score_cap: 1.0
   market_neutral: true        # cross-sectional dollar-neutral (strips price beta)
+
+vrp:
+  # Variance-risk-premium market-timing sleeve (implied DVOL vs realized vol).
+  # a-priori windows; the gauntlet's trial grid varies them for honest deflation.
+  realized_vol_hours: 168     # trailing realized-vol window (~7d)
+  zscore_hours: 720           # window to z-score the premium (~30d)
 
 costs:
   taker_fee_bps: 4.0        # ~2-5 bps on major venues
