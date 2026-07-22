@@ -44,6 +44,10 @@ risk:
   target_annual_vol: 0.12    # modest portfolio vol target (10-15% band)
   vol_forecast_halflife_hours: 72
   kelly_fraction: 0.35       # quarter-to-half Kelly
+  # Rebalance cadence: refresh target weights daily and hold in between. TSMOM's
+  # edge is on days-to-weeks, so hourly re-trading is pure cost bleed. 24h is an
+  # a-priori match to the signal speed (0 or 1 => rebalance every bar).
+  rebalance_hours: 24
   max_gross_leverage: 3.0    # effective leverage cap (<=3x per brief)
   max_position_weight: 1.0   # per-instrument gross weight cap (fraction of equity)
   # Correlation-aware total-risk: instruments in the same cluster share a risk budget

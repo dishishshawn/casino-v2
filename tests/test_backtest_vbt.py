@@ -29,5 +29,10 @@ def test_costs_reduce_returns(prices, cfg):
     scores = tsmom.from_config(cfg).scores(prices)
     weights = sizing.size(scores, prices, cfg)
     gross = engine.run_backtest(prices, weights, CostModel(0, 0, 0, 0, 8, 0.0), cfg)
-    net = engine.run_backtest(prices, weights, cost_from_config(cfg), cfg)
+    # Isolate the TRADE-cost channel: funding is signed (shorts receive it), so a
+    # low-turnover short-biased book can net a funding CREDIT that exceeds tiny
+    # trade costs. Trade costs alone are an unambiguous drag, so zero funding here.
+    trade_only = cost_from_config(cfg)
+    trade_only.default_funding_rate = 0.0
+    net = engine.run_backtest(prices, weights, trade_only, cfg)
     assert net.equity.iloc[-1] < gross.equity.iloc[-1]

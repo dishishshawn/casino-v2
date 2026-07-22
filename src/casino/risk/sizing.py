@@ -92,7 +92,27 @@ def size(
     lev_scale = (r["max_gross_leverage"] / gross).clip(upper=1.0).replace([np.inf, np.nan], 1.0)
     sized = sized.mul(lev_scale, axis=0)
 
+    # Rebalance throttle: TSMOM's edge lives on days-to-weeks horizons, so
+    # re-trading every bar just bleeds cost. Refresh targets only on a coarse
+    # rebalance grid and HOLD in between. This is an a-priori execution cadence
+    # matched to the signal's speed, not a tuned parameter.
+    sized = _throttle_rebalance(sized, cfg)
+
     return sized.fillna(0.0)
+
+
+def _throttle_rebalance(weights: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Hold target weights constant except on an every-`rebalance_hours` grid."""
+    rb_hours = float(cfg["risk"].get("rebalance_hours", 0) or 0)
+    if rb_hours <= 0:
+        return weights
+    step = max(1, round(rb_hours * _bars_per_hour(cfg["data"]["timeframe"])))
+    if step <= 1:
+        return weights
+    held = weights.copy()
+    off_grid = (np.arange(len(held)) % step) != 0
+    held.iloc[off_grid] = np.nan       # only rebalance bars carry a fresh target
+    return held.ffill()                # hold the last target in between
 
 
 def _bars_per_hour(timeframe: str) -> float:
