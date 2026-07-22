@@ -9,7 +9,10 @@ data:
   quote: "USDT"
   timeframe: "1h"            # bar size for signals/backtest
   # Liquid large-cap perp universe. BTC/ETH treated as correlated in sizing.
-  universe: ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT", "BNB/USDT:USDT", "XRP/USDT:USDT"]
+  # Trimmed to the symbols OKX actually serves from this (Binance/Bybit geo-blocked)
+  # location; SOL/BNB perps aren't available via OKX here. Restore the full list
+  # once a venue that serves them is reachable.
+  universe: ["BTC/USDT:USDT", "ETH/USDT:USDT", "XRP/USDT:USDT"]
   start: "2021-01-01T00:00:00Z"
   end: null                  # null => now
   cache_dir: "data_cache"

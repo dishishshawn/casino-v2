@@ -66,8 +66,11 @@ def fetch_ohlcv(
         if last <= cursor:  # no forward progress -> stop
             break
         cursor = last + tf_ms
-        if len(batch) < limit:
-            break
+        # NOTE: do NOT stop on `len(batch) < limit`. Some venues (e.g. OKX) cap
+        # candles per call BELOW our requested `limit` (OKX returns 300), so a
+        # short-but-full page is normal, not the end of history. Termination is
+        # handled by the `cursor < end_ms` loop guard and the no-progress break
+        # above; a final empty batch ends it cleanly.
     if not rows:
         return _empty_ohlcv()
     df = pd.DataFrame(rows, columns=["ts", "open", "high", "low", "close", "volume"])
@@ -107,8 +110,8 @@ def fetch_funding(
         if last <= cursor:
             break
         cursor = last + 1
-        if len(batch) < 1000:
-            break
+        # Same as OHLCV: don't stop on a short-but-full page (OKX funding caps
+        # per call below 1000). The cursor/end_ms guard + no-progress break end it.
     if not rows:
         return _empty_funding()
     df = pd.DataFrame(
