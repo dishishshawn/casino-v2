@@ -39,16 +39,38 @@ The disciplined call: **NO-GO stands. No capital.**
 understated pre-2026 in the momentum backtest (drag was ~0, so low impact there) — but it
 is a hard blocker for a carry sleeve, which needs multi-year funding history.
 
-## Next hypothesis: funding-carry sleeve (orthogonal alpha)
+## Funding-carry sleeve — BUILT & validated (2026-07-22)
 
-The one remaining path to a *legitimate* GO. Carry (harvest rich perp funding) is
-uncorrelated with trend and tends to do best in the choppy regimes where momentum bleeds —
-i.e. it directly attacks the 2025+ weakness above. Downstream plumbing (sizing, cost model
-with funding, gauntlet) already exists; a carry signal is a new `Signal` subclass.
-**Hard prerequisite = DATA:** source multi-year funding history (a data vendor, or a
-venue/endpoint with full depth). Until that lands, a carry backtest is impossible and must
-not be faked with `default_funding_rate`. Sequence: get funding data → build carry `Signal`
-→ validate carry alone → validate a momentum+carry portfolio through the same gauntlet.
+Third disciplined hypothesis. Outcome: the best, most robust version yet, but STILL NO-GO.
+
+- **Data solved.** Exchange live funding APIs cap at recent history (OKX ~3mo), so a real
+  2021→2026 carry backtest was impossible from ccxt. Fix: `data/funding_dumps.py` pulls full
+  funding from Binance's public data-dump CDN (`data.binance.vision`) — a SEPARATE domain
+  reachable even though the Binance API is geo-blocked (451). ~6k rows/coin, cached under
+  venue `binancevision`; `load_funding_panel` prefers it.
+- **Naked carry is a dud** (Sharpe −0.07, −22% DD): a single directional perp leg carries too
+  much price risk, which swamps the funding harvest. The real (delta-neutral cash-and-carry)
+  edge needs a SPOT leg this engine doesn't model.
+- **Cross-sectional market-neutral carry works** (short high-funding / long low-funding,
+  demeaned each bar → strips market beta): standalone Sharpe **+0.50**, ~**0 correlation** to
+  momentum. `signal.kind='combo'` runs an equal-risk momentum+carry blend.
+- **Combo result:** fixes the 2025 headwind — **all 4 regimes now non-negative** (2025
+  −0.14→+0.01), OOS holdout −0.07→**+0.14**, PBO 0.10→**0.086**. Stages 1–3 all PASS.
+  **Still NO-GO: DSR 0.893 < 0.95.** Even a diversified, regime-robust book can't clear
+  honest 20-trial deflation. Discipline held: did NOT tune the carry weight to force it.
+
+## Where a legitimate GO could still come from (not yet attempted)
+
+The momentum edge is real but sub-threshold; carry diversifies it but doesn't add enough
+raw Sharpe. The remaining honest levers are ARCHITECTURAL, not tuning:
+
+1. **Delta-neutral cash-and-carry** — add spot instruments and pair spot-long/perp-short to
+   harvest funding with the price risk actually hedged. This is the *real* carry edge (vs the
+   naked/cross-sectional approximations here) and could add meaningful uncorrelated Sharpe.
+   Biggest change: the engine becomes multi-leg (spot + perp), not perp-only.
+2. **Accept NO-GO.** Three disciplined iterations (turnover, breadth, carry) each improved the
+   strategy and each was honestly validated; the engine still refuses to bless it. That is the
+   system working as designed and matches the brutal base rate. No capital.
 
 ## Decisions
 
