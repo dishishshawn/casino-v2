@@ -83,12 +83,50 @@ and a daily throttle. Validate via `signal.kind='dn_carry'`.
   robust result. And even this flattering model excludes the real killers — perp liquidation
   in a price spike, funding flips, exchange/counterparty risk (Oct-2025-style cascades).
 
+## New-hypothesis research + prototypes (2026-07-22)
+
+Ran a deep-research pass for genuinely new, engine-compatible hypotheses. Top two picks —
+both buildable on reachable data (price + funding, all regimes), both meant to be
+counter-cyclical to momentum:
+
+1. **Cross-sectional short-horizon reversal** (long recent losers / short winners).
+2. **Funding-positioning contrarian** (fade funding extremes; distinct from carry harvest).
+
+**Both FAILED at the prototype stage** on our 12 liquid large-cap OKX perps (hourly, net of
+costs) — no pulse, before even reaching the gauntlet:
+- Reversal: negative Sharpe at EVERY horizon tested (6h→7d), demeaned or directional
+  (−1.4 to −2.2). On liquid large-caps the cross-section is momentum-dominated; the reversal
+  effect lives in small/illiquid coins we can't reach (the research flagged this exact caveat).
+- Funding-positioning: negative Sharpe in every formulation (contrarian/with-funding ×
+  cross-sectional/directional × 30d/60d windows), −0.35 to −1.9. The effect the practitioner
+  blogs describe doesn't survive on large-caps net of costs.
+
+Correlations to momentum were indeed negative as predicted, but a negative-Sharpe sleeve
+can't help a blend (same lesson as naked carry). Disciplined call: did NOT grind more
+price/funding formulations — the prototypes are decisively negative, not marginal.
+
+## Conclusion: reachable free data is mined out for daily-frequency edges
+
+This confirms the research's own "benchmark that changes everything": price + funding on
+liquid large-caps has now been exhausted (momentum, breadth, both carry variants, reversal,
+funding-positioning — all NO-GO). The only research-identified paths left require a **DATA
+investment**, not another price-only signal:
+- **Open-interest / positioning-divergence** — but free native OI history starts only ~2023
+  (fails the 2021/2022 regime walk-forward). Needs paid history to 2020 (Tardis/Coinglass/
+  Amberdata/CoinAPI).
+- **Variance-risk-premium harvest** — needs an options / implied-vol feed (Deribit DVOL);
+  can't be done cleanly perp-only.
+
+Decision now belongs to the human: (a) fund a historical data source to unlock OI/positioning
+or VRP, or (b) accept the honest terminal NO-GO on free data. No capital either way.
+
 ## Bottom line
 
-Every honestly-validated variant — momentum, +breadth, +market-neutral carry, and
-delta-neutral basis carry — is **NO-GO** on real 2021→2026 data. The research question is
-answered: no tested edge clears realistic costs AND honest multiple-testing correction AND
-out-of-sample generalization. The engine did its job. **No capital.**
+Every honestly-validated variant — momentum, +breadth, +market-neutral carry, delta-neutral
+basis carry — plus two prototyped new hypotheses (reversal, funding-positioning) is
+**NO-GO** on real 2021→2026 data reachable for free. The research question is answered: no
+tested edge clears realistic costs AND honest multiple-testing correction AND out-of-sample
+generalization. The engine did its job. **No capital.**
 
 ## Decisions
 
