@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from casino.backtest import engine, metrics
+from casino.backtest import delta_neutral, engine, metrics
 from casino.costs.model import CostModel
 from casino.costs.model import from_config as cost_from_config
 from casino.risk import sizing
@@ -35,7 +35,9 @@ def _sleeve_returns(
     cfg: dict,
     cm: CostModel,
 ) -> pd.Series:
-    """Net return series for a single sleeve ('tsmom' or 'carry')."""
+    """Net return series for a single sleeve ('tsmom', 'carry', or 'dn_carry')."""
+    if which == "dn_carry":
+        return delta_neutral.dn_carry_returns(funding, cm, cfg)
     if which == "carry":
         scores = carry.from_config(cfg, funding).scores(prices)
     else:
@@ -61,8 +63,8 @@ def strategy_returns(
     """
     cm = cost_model if cost_model is not None else cost_from_config(cfg)
     kind = cfg.get("signal", {}).get("kind", "tsmom")
-    if kind == "carry":
-        return _sleeve_returns("carry", prices, funding, cfg, cm)
+    if kind in ("carry", "dn_carry"):
+        return _sleeve_returns(kind, prices, funding, cfg, cm)
     if kind == "combo":
         w = float(cfg["signal"].get("combo_carry_weight", 0.5))
         r_mom = _sleeve_returns("tsmom", prices, funding, cfg, cm)
@@ -72,7 +74,30 @@ def strategy_returns(
 
 
 def _candidate_configs(cfg: dict) -> list[dict]:
-    """Grid of TSMOM variants for multiple-testing / PBO analysis (honest trials)."""
+    """Grid of strategy variants for multiple-testing / PBO analysis (honest trials).
+
+    The trials must vary the knobs the strategy actually responds to, or the PBO/DSR
+    deflation degenerates. Momentum-bearing strategies vary lookbacks x Kelly; pure
+    carry strategies vary the funding lookback x richness reference.
+    """
+    n_trials = int(cfg["validation"]["n_trials"])
+    kind = cfg.get("signal", {}).get("kind", "tsmom")
+    out: list[dict] = []
+
+    if kind in ("carry", "dn_carry"):
+        base_lb = cfg.get("carry", {}).get("lookback_hours", 72)
+        lookbacks = [base_lb // 2 or 1, base_lb, base_lb * 2, base_lb * 4]
+        refs = [0.15, 0.20, 0.30, 0.45, 0.60]
+        for lb, ref in itertools.product(lookbacks, refs):
+            c = _clone(cfg)
+            c.setdefault("carry", {})
+            c["carry"]["lookback_hours"] = lb
+            c["carry"]["carry_ref_annual"] = ref
+            out.append(c)
+            if len(out) >= n_trials:
+                return out
+        return out
+
     base_lbs = cfg["signal"]["lookbacks_hours"]
     lb_sets = [
         [base_lbs[0]],
@@ -82,8 +107,6 @@ def _candidate_configs(cfg: dict) -> list[dict]:
         base_lbs,
     ]
     kellys = [0.25, 0.35, 0.5]
-    n_trials = int(cfg["validation"]["n_trials"])
-    out = []
     for lbs, k in itertools.product(lb_sets, kellys):
         c = _clone(cfg)
         c["signal"]["lookbacks_hours"] = lbs
