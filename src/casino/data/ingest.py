@@ -54,13 +54,26 @@ def fetch_ohlcv(
     end_ms = end_ms or int(time.time() * 1000)
     rows: list[list[float]] = []
     cursor = since_ms
+    # Some venues (OKX) return an EMPTY batch when `since` predates the symbol's
+    # listing, instead of clamping to the listing date. So before giving up on an
+    # empty batch, probe forward in coarse steps to find where history begins;
+    # only treat empty as "end of data" once we've actually collected some rows.
+    probe_step = 30 * 86_400_000  # ~30 days
+    max_empty_probes = 72         # ~6 years of forward search
+    empty_probes = 0
     while cursor < end_ms:
         batch = _with_retries(
             lambda c=cursor: ex.fetch_ohlcv(symbol, timeframe, since=c, limit=limit),
             max_retries,
         )
         if not batch:
-            break
+            if rows:  # genuine end of available history
+                break
+            empty_probes += 1
+            if empty_probes > max_empty_probes:
+                break
+            cursor += probe_step  # not listed yet here -> jump ahead and retry
+            continue
         rows.extend(batch)
         last = batch[-1][0]
         if last <= cursor:  # no forward progress -> stop

@@ -8,11 +8,16 @@ data:
   venues: ["binanceusdm", "bybit", "okx"]
   quote: "USDT"
   timeframe: "1h"            # bar size for signals/backtest
-  # Liquid large-cap perp universe. BTC/ETH treated as correlated in sizing.
-  # Trimmed to the symbols OKX actually serves from this (Binance/Bybit geo-blocked)
-  # location; SOL/BNB perps aren't available via OKX here. Restore the full list
-  # once a venue that serves them is reachable.
-  universe: ["BTC/USDT:USDT", "ETH/USDT:USDT", "XRP/USDT:USDT"]
+  # Liquid large-cap perp universe, chosen a-priori by market-cap/liquidity (NOT by
+  # backtest performance -- picking coins by returns would be selection bias). All
+  # are OKX-served (Binance/Bybit are geo-blocked here). Coins listed after `start`
+  # begin at their listing date; the ingest forward-probes to find it. Breadth is
+  # the honest lever for a momentum book's Sharpe: more independent bets.
+  universe: [
+    "BTC/USDT:USDT", "ETH/USDT:USDT", "XRP/USDT:USDT", "SOL/USDT:USDT",
+    "DOGE/USDT:USDT", "ADA/USDT:USDT", "AVAX/USDT:USDT", "LINK/USDT:USDT",
+    "LTC/USDT:USDT", "BCH/USDT:USDT", "DOT/USDT:USDT", "TRX/USDT:USDT",
+  ]
   start: "2021-01-01T00:00:00Z"
   end: null                  # null => now
   cache_dir: "data_cache"
