@@ -26,12 +26,25 @@ data:
   delisted_symbols: []
 
 signal:
+  # Strategy selector: 'tsmom' (momentum only), 'carry' (funding-carry only), or
+  # 'combo' (equal-risk blend of both sleeves). Combo is the current hypothesis:
+  # momentum + an orthogonal market-neutral carry sleeve for diversification.
+  kind: "combo"
+  combo_carry_weight: 0.5   # equal-risk a-priori weight on the carry sleeve
   # TSMOM on each instrument's own past return. Shorter lookbacks than the equity
   # 12-month, per the brief (crypto momentum favors days-to-weeks). In bars.
   lookbacks_hours: [72, 168, 336, 720]   # ~3d, 7d, 14d, 30d
   vol_lookback_hours: 168                 # vol used to risk-normalize the trend score
   # Long/short symmetric. score in [-1, 1] via tanh of the vol-normalized trend.
   score_cap: 1.0
+
+carry:
+  # Funding-carry sleeve: SHORT richly-positive funding to earn it (orthogonal to
+  # momentum). a-priori scales, not tuned to returns.
+  lookback_hours: 72          # EWMA smoothing of recent funding (persistence)
+  carry_ref_annual: 0.30      # annualized funding that maps to a ~0.76 score
+  score_cap: 1.0
+  market_neutral: true        # cross-sectional dollar-neutral (strips price beta)
 
 costs:
   taker_fee_bps: 4.0        # ~2-5 bps on major venues

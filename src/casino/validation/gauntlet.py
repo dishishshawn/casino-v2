@@ -24,8 +24,24 @@ from casino.backtest import engine, metrics
 from casino.costs.model import CostModel
 from casino.costs.model import from_config as cost_from_config
 from casino.risk import sizing
-from casino.signals import tsmom
+from casino.signals import carry, tsmom
 from casino.validation import cpcv, deflated_sharpe
+
+
+def _sleeve_returns(
+    which: str,
+    prices: pd.DataFrame,
+    funding: pd.DataFrame | None,
+    cfg: dict,
+    cm: CostModel,
+) -> pd.Series:
+    """Net return series for a single sleeve ('tsmom' or 'carry')."""
+    if which == "carry":
+        scores = carry.from_config(cfg, funding).scores(prices)
+    else:
+        scores = tsmom.from_config(cfg).scores(prices)
+    weights = sizing.size(scores, prices, cfg)
+    return engine.run_backtest(prices, weights, cm, cfg, funding).net_returns
 
 
 def strategy_returns(
@@ -34,12 +50,25 @@ def strategy_returns(
     cfg: dict,
     cost_model: CostModel | None = None,
 ) -> pd.Series:
-    """Net per-bar return series for one config over the whole sample."""
+    """Net per-bar return series for one config over the whole sample.
+
+    `signal.kind` selects the strategy:
+      * 'tsmom' (default) — time-series momentum only.
+      * 'carry'           — funding-carry sleeve only.
+      * 'combo'           — equal-risk blend of momentum + carry sleeves. The two
+                            sleeves are vol-targeted to the same level, so an equal
+                            weight is ~equal-risk (an a-priori choice, not tuned).
+    """
     cm = cost_model if cost_model is not None else cost_from_config(cfg)
-    scores = tsmom.from_config(cfg).scores(prices)
-    weights = sizing.size(scores, prices, cfg)
-    result = engine.run_backtest(prices, weights, cm, cfg, funding)
-    return result.net_returns
+    kind = cfg.get("signal", {}).get("kind", "tsmom")
+    if kind == "carry":
+        return _sleeve_returns("carry", prices, funding, cfg, cm)
+    if kind == "combo":
+        w = float(cfg["signal"].get("combo_carry_weight", 0.5))
+        r_mom = _sleeve_returns("tsmom", prices, funding, cfg, cm)
+        r_car = _sleeve_returns("carry", prices, funding, cfg, cm)
+        return ((1.0 - w) * r_mom + w * r_car).rename("net")
+    return _sleeve_returns("tsmom", prices, funding, cfg, cm)
 
 
 def _candidate_configs(cfg: dict) -> list[dict]:

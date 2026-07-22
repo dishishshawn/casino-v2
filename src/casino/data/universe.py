@@ -81,9 +81,12 @@ def load_funding_panel(cfg: dict) -> pd.DataFrame:
     """Wide funding-rate panel aligned to symbols (may be empty for some venues)."""
     d = cfg["data"]
     symbols = list(d["universe"]) + list(d.get("delisted_symbols") or [])
+    # Prefer the multi-year Binance data-dump funding (venue 'binancevision') over
+    # the shallow live-API funding, since carry needs deep history.
+    read_venues = ["binancevision"] + list(d["venues"])
     cols: dict[str, pd.Series] = {}
     for symbol in symbols:
-        for venue in d["venues"]:
+        for venue in read_venues:
             path = storage.funding_path(d["cache_dir"], venue, symbol)
             df = storage.read_df(path)
             if df is not None and len(df):
