@@ -59,18 +59,36 @@ Third disciplined hypothesis. Outcome: the best, most robust version yet, but ST
   **Still NO-GO: DSR 0.893 < 0.95.** Even a diversified, regime-robust book can't clear
   honest 20-trial deflation. Discipline held: did NOT tune the carry weight to force it.
 
-## Where a legitimate GO could still come from (not yet attempted)
+## ACCEPTED: perp-only directional strategy is NO-GO (2026-07-22)
 
-The momentum edge is real but sub-threshold; carry diversifies it but doesn't add enough
-raw Sharpe. The remaining honest levers are ARCHITECTURAL, not tuning:
+Decision taken. Three disciplined iterations (turnover throttle, breadth to 12 coins,
+market-neutral carry combo) each genuinely improved the strategy and each was honestly
+validated — the combo even fixed the 2025 regime headwind — yet the engine still refused
+to bless it (best DSR 0.893 < 0.95). That is the system working exactly as designed and it
+matches the brutal base rate. **No capital on the perp-only strategy.**
 
-1. **Delta-neutral cash-and-carry** — add spot instruments and pair spot-long/perp-short to
-   harvest funding with the price risk actually hedged. This is the *real* carry edge (vs the
-   naked/cross-sectional approximations here) and could add meaningful uncorrelated Sharpe.
-   Biggest change: the engine becomes multi-leg (spot + perp), not perp-only.
-2. **Accept NO-GO.** Three disciplined iterations (turnover, breadth, carry) each improved the
-   strategy and each was honestly validated; the engine still refuses to bless it. That is the
-   system working as designed and matches the brutal base rate. No capital.
+## Delta-neutral cash-and-carry — BUILT & validated → ALSO NO-GO (2026-07-22)
+
+Tried the one remaining architectural lever: the real basis trade (long spot + short perp,
+price-hedged, harvest funding). Modeled the sleeve's return stream directly in
+`backtest/delta_neutral.py` (perp-only engine can't hold two legs), with honest 2-leg costs
+and a daily throttle. Validate via `signal.kind='dn_carry'`.
+
+- **Full-sample Sharpe 3.72** (vol 0.65%) looked stellar — but the gauntlet exposed it as a
+  mirage: **the entire edge is the 2021 bull-market funding bonanza.** OOS holdout Sharpe
+  **−10.9**, two regimes negative (2022 bear, 2025), **DSR 0.0**. It does NOT generalize past
+  its golden regime. Strong NO-GO.
+- Caveat: the extreme Sharpe magnitudes are partly a per-bar measurement artifact (funding
+  accrues smoothly, costs land on rebalance bars), but the in-sample→OOS **sign flip** is the
+  robust result. And even this flattering model excludes the real killers — perp liquidation
+  in a price spike, funding flips, exchange/counterparty risk (Oct-2025-style cascades).
+
+## Bottom line
+
+Every honestly-validated variant — momentum, +breadth, +market-neutral carry, and
+delta-neutral basis carry — is **NO-GO** on real 2021→2026 data. The research question is
+answered: no tested edge clears realistic costs AND honest multiple-testing correction AND
+out-of-sample generalization. The engine did its job. **No capital.**
 
 ## Decisions
 
