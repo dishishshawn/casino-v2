@@ -5,12 +5,54 @@ Newest decisions on top.
 
 ## Current status (2026-07-22)
 
-- **Built & pushed:** cost-aware TSMOM research + validation engine (signal → risk/sizing
-  → cost → backtest → validation gauntlet). 23 tests, ruff clean. Backtest-only.
-- **First REAL-data gauntlet run is done.** Fetched from OKX (Binance/Bybit geo-blocked
-  from this location: 451 / CloudFront 403). Verdict: **NO-GO** — and an honest one.
-- **Next honest lever (recommended): a funding-carry sleeve.** Blocked only by data —
-  see "Real-data findings" below.
+- **Built & pushed:** cost-aware research + validation engine (signal → risk/sizing → cost
+  → backtest → validation gauntlet). 37 tests, ruff clean. Backtest-only.
+- **FIRST GO (marginal).** Strategy: **risk-parity blend of momentum + market-neutral carry**
+  on real OKX 2021→2026 data. Clears all four gauntlet stages: net Sharpe 1.13, OOS holdout
+  +0.64, 3/4 regimes positive, **DSR 0.9612 > 0.95, PBO 0.229**. `run_gauntlet.py` on the
+  default config reproduces it. **This is a MARGINAL pass — next stage is PAPER TRADING, not
+  capital.** See caveats below.
+- Journey: single-sleeve momentum, breadth, both carry variants, delta-neutral carry, cross-
+  sectional reversal, funding-positioning, and VRP timing were all NO-GO. The GO came from
+  *portfolio construction* (causal risk-parity weighting) of the two sleeves that individually
+  survived, not from a new signal.
+
+## The GO — what it is and how much to trust it (2026-07-22)
+
+- **Strategy:** `signal.kind='blend'`, `sleeves=['tsmom','carry']`, causal equal-risk
+  (risk-parity) weighting (`blend_vol_hours=720`). Momentum = vol-targeted TSMOM; carry =
+  cross-sectional market-neutral funding carry. Risk-parity down-weights whichever sleeve is
+  currently high-vol (trailing, shifted → no lookahead). This lifted the fixed-50/50 combo's
+  DSR 0.893 → 0.9612.
+- **Robustness:** GO holds across blend windows 504–1440h (DSR 0.952–0.961); only 360h just
+  misses (0.9465). Not a single-window fluke, but **marginal everywhere (~0.95–0.96)**.
+- **TRUST IT ONLY PROVISIONALLY. Honest caveats:**
+  1. **Marginal.** DSR barely clears 0.95. A thin edge, not a fat one.
+  2. **Multiple-testing burden exceeds the 20-trial deflation.** Across the whole research
+     program many strategies were explored; DSR deflates for 20 within-strategy trials, not
+     the full search. The only real confirmation is genuinely OUT-OF-SAMPLE evidence →
+     forward **paper trading** before any capital.
+  3. **Survivorship bias** persists (12 currently-live OKX perps, `delisted_symbols` empty) —
+     biases crypto momentum UPWARD. This alone could account for a marginal pass.
+  4. **OKX-only, funding-data caveats** (momentum backtest funding understated pre-2026),
+     no tail/liquidation modeling.
+
+## VRP timing — explored, NO-GO (2026-07-22)
+
+Pursued the two research-identified paid-data paths. **#1 OI/positioning: not reachable free**
+(OKX caps ~6mo; Binance `metrics` dumps don't reach back; needs a paid vendor). **#2 VRP:
+Deribit DVOL implied-vol index IS free and deep** (BTC/ETH, 2021-03→now) — better than the
+research assumed. Built it (`data/dvol.py`, `backtest/vrp_timing.py`). Prototyped at Sharpe
+1.25, but the gauntlet exposed it as fragile (PBO 0.73, OOS holdout negative) — another full-
+sample mirage — and it HURTS the momentum+carry blend. VRP is a NO-GO; kept in-tree for research.
+
+## Next step: PAPER TRADING the GO (not capital)
+
+The gauntlet's own message on a GO: "proceed to the NEXT stage (paper trading). Still haircut
+Sharpe." Per the design brief this is a DEFERRED, higher-risk phase that belongs on a host you
+control, not an ephemeral sandbox, and needs execution/OMS wiring that is out of scope for this
+research build. Before that: mitigate survivorship bias (populate `delisted_symbols`) and
+re-confirm the GO, since that bias is the most likely source of a false marginal pass.
 
 ## Real-data findings (2026-07-22)
 
@@ -120,13 +162,15 @@ investment**, not another price-only signal:
 Decision now belongs to the human: (a) fund a historical data source to unlock OI/positioning
 or VRP, or (b) accept the honest terminal NO-GO on free data. No capital either way.
 
-## Bottom line
+## Bottom line (updated)
 
-Every honestly-validated variant — momentum, +breadth, +market-neutral carry, delta-neutral
-basis carry — plus two prototyped new hypotheses (reversal, funding-positioning) is
-**NO-GO** on real 2021→2026 data reachable for free. The research question is answered: no
-tested edge clears realistic costs AND honest multiple-testing correction AND out-of-sample
-generalization. The engine did its job. **No capital.**
+Most variants were NO-GO — single-sleeve momentum, both carry variants standalone, delta-
+neutral basis carry, reversal, funding-positioning, VRP timing. The **one GO** is the
+**risk-parity blend of momentum + market-neutral carry** (DSR 0.9612, marginal), and it came
+from *portfolio construction*, not a new signal. The engine did its job: it rejected every
+overfit mirage (incl. a 3.72-Sharpe delta-neutral trade) and passed only a thin, robust-
+across-windows edge. That GO advances to **paper trading**, not capital — and only after
+survivorship bias is mitigated and the thin margin is re-confirmed out-of-sample.
 
 ## Decisions
 
