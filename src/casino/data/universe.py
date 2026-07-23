@@ -98,8 +98,9 @@ def load_funding_panel(cfg: dict) -> pd.DataFrame:
     d = cfg["data"]
     symbols = list(d["universe"]) + list(d.get("delisted_symbols") or [])
     # Prefer the multi-year Binance data-dump funding (venue 'binancevision') over
-    # the shallow live-API funding, since carry needs deep history.
-    read_venues = ["binancevision"] + list(d["venues"])
+    # the shallow live-API funding, since carry needs deep history. "synthetic"
+    # last so real cached funding always wins when present.
+    read_venues = ["binancevision"] + list(d["venues"]) + ["synthetic"]
     cols: dict[str, pd.Series] = {}
     for symbol in symbols:
         for venue in read_venues:

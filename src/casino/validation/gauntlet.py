@@ -81,17 +81,28 @@ def strategy_returns(
     return _sleeve_returns("tsmom", prices, funding, cfg, cm)
 
 
-def _equal_risk_blend(streams: list[pd.Series], cfg: dict) -> pd.Series:
-    """Average sleeve returns after scaling each to the target vol with a CAUSAL
-    trailing-vol estimate, so no single sleeve dominates by having higher raw vol."""
+def blend_scalers(streams: list[pd.Series], cfg: dict) -> list[pd.Series]:
+    """Per-bar risk-parity scalers for each sleeve, from a CAUSAL trailing-vol
+    estimate of its own NET return stream, so no sleeve dominates by having
+    higher raw vol. Exposed (not `_`-private) because execution/book.py needs
+    the identical formula to reconstruct the tradable position panel -- the
+    blend's economics live in this scaling, and it must not silently drift
+    between the validated backtest and what actually gets traded."""
     bpy = int(cfg["risk"]["bars_per_year"])
     target = float(cfg["risk"]["target_annual_vol"])
     win = int(cfg["signal"].get("blend_vol_hours", 720))  # trailing vol window (~30d)
-    scaled = []
+    scalers = []
     for s in streams:
         vol = s.rolling(win, min_periods=win // 2).std().shift(1) * (bpy ** 0.5)
-        sc = (target / vol.clip(lower=1e-4)).clip(upper=3.0)
-        scaled.append(s * sc)
+        scalers.append((target / vol.clip(lower=1e-4)).clip(upper=3.0))
+    return scalers
+
+
+def _equal_risk_blend(streams: list[pd.Series], cfg: dict) -> pd.Series:
+    """Average sleeve returns after scaling each to the target vol (see
+    `blend_scalers`)."""
+    scalers = blend_scalers(streams, cfg)
+    scaled = [s * sc for s, sc in zip(streams, scalers, strict=True)]
     df = pd.concat(scaled, axis=1)
     return df.mean(axis=1)
 

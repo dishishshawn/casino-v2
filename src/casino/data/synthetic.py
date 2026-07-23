@@ -73,10 +73,38 @@ def _regime_path(rng: np.random.Generator, n: int, switch_prob: float) -> np.nda
     return path
 
 
-def write_synthetic_cache(cfg: dict, n_bars: int = 8000, seed: int = 7) -> list[str]:
-    """Generate synthetic OHLCV for the configured universe and write it to cache.
+def generate_funding(
+    symbols: list[str],
+    n_bars: int,
+    start: str = "2021-01-01",
+    freq: str = "1h",
+    seed: int = 7,
+    mean_annual: float = 0.10,
+    noise_annual: float = 0.20,
+) -> pd.DataFrame:
+    """Wide synthetic funding-rate panel: small mean-reverting rates per symbol.
 
-    Uses a sentinel venue name 'synthetic' so it never collides with real data.
+    Pipeline-exercise only (not a real edge) -- lets `signal.kind='carry'` /
+    `'blend'` / `'combo'` run offline the same way `--synthetic` already lets
+    `'tsmom'` run offline.
+    """
+    idx = pd.date_range(start=start, periods=n_bars, freq=freq, tz="UTC", name="ts")
+    intervals_per_year = 8760.0 / 8.0  # matches the default 8h funding interval
+    per_interval_mean = mean_annual / intervals_per_year
+    per_interval_noise = noise_annual / intervals_per_year
+    cols = {}
+    for i, sym in enumerate(symbols):
+        a_rng = np.random.default_rng(seed + 9973 + i + 1)
+        regime = _regime_path(a_rng, n_bars, switch_prob=0.01)
+        rate = per_interval_mean * regime + per_interval_noise * a_rng.standard_normal(n_bars)
+        cols[sym] = rate
+    return pd.DataFrame(cols, index=idx)
+
+
+def write_synthetic_cache(cfg: dict, n_bars: int = 8000, seed: int = 7) -> list[str]:
+    """Generate synthetic OHLCV + funding for the configured universe and write
+    it to cache. Uses a sentinel venue name 'synthetic' so it never collides
+    with real data.
     """
     d = cfg["data"]
     symbols = list(d["universe"]) + list(d.get("delisted_symbols") or [])
@@ -85,4 +113,10 @@ def write_synthetic_cache(cfg: dict, n_bars: int = 8000, seed: int = 7) -> list[
     for sym, df in frames.items():
         path = storage.ohlcv_path(d["cache_dir"], "synthetic", sym, d["timeframe"])
         storage.write_df(df, path)
+
+    funding = generate_funding(symbols, n_bars=n_bars, start=d["start"][:10],
+                               freq=d["timeframe"], seed=seed)
+    for sym in symbols:
+        path = storage.funding_path(d["cache_dir"], "synthetic", sym)
+        storage.write_df(funding[[sym]].rename(columns={sym: "funding_rate"}), path)
     return symbols

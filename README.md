@@ -31,6 +31,7 @@ regime kill-switch, and monitoring can be added later without touching research 
 | `risk/` | Vol targeting → **fractional (¼–½) Kelly** → correlation-aware portfolio-vol cap → ≤3× leverage | fractional Kelly; BTC/ETH sized together |
 | `backtest/` | Returns-based sim with exact costs+funding; metrics incl. **50% Sharpe haircut** | haircut backtested Sharpe ~50% |
 | `validation/` | Purge+embargo, CPCV, **Deflated Sharpe + PBO**, staged gauntlet | López de Prado / Bailey; the moat |
+| `execution/` | Target-weight reconstruction, order diffing, offline paper broker, kill-switch — **no network, no keys** | see EXECUTION.md |
 
 ### Why returns-based (not vectorbt end-to-end)?
 Perp **funding** and turnover-scaled adverse slippage aren't modeled natively by
@@ -58,7 +59,13 @@ python scripts/run_backtest.py --synthetic --no-costs   # sanity: costs must bit
 
 # 3. Run the staged validation gauntlet -> GO / NO-GO verdict
 python scripts/run_gauntlet.py --synthetic
+
+# 4. Offline dry-run of the paper-trading decision pipeline (no network/keys)
+python scripts/run_paper.py --synthetic
 ```
+
+See [EXECUTION.md](EXECUTION.md) for what the paper-trading architecture is
+(and deliberately is not) before running step 4.
 
 ### The validation gauntlet (go/no-go gate)
 1. **In-sample, full costs** — reject if the edge can't clear costs.
@@ -87,14 +94,18 @@ Runs are hashed (`casino.config.config_hash`) for reproducibility.
   `--synthetic` to exercise the full pipeline offline. Synthetic mode is a pipeline
   test **only** — it is not a real edge. See [NETWORK.md](NETWORK.md) for the exact
   allowlist and mobile setup steps.
-- **Deferred (later phases).** Execution/OMS, maker/taker routing, regime kill-switch,
-  monitoring, testnet paper trading, and live keys are out of scope for this build.
+- **Deferred (later phases).** `execution/` now has the venue-agnostic target-weight
+  reconstruction, order diffing, an offline paper broker, and a kill-switch (see
+  EXECUTION.md) — but maker/taker routing, a real broker/testnet adapter, a live
+  data feed, monitoring/alerting, and live keys are still out of scope, and no
+  capital or real order routing is connected anywhere in this build.
 
 ## Tests
 
 ```bash
-pytest          # 23 tests: cost monotonicity, vol/leverage caps, no-leakage purging,
+pytest          # cost monotonicity, vol/leverage caps, no-leakage purging,
                 # DSR shrinks with trials, PBO high on noise / low on a real edge,
-                # signal captures momentum & shuffling destroys it, vectorbt cross-check
+                # signal captures momentum & shuffling destroys it, vectorbt cross-check,
+                # execution book/orders/paper-broker/kill-switch
 ruff check src scripts tests
 ```

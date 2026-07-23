@@ -96,12 +96,12 @@ def size(
     # re-trading every bar just bleeds cost. Refresh targets only on a coarse
     # rebalance grid and HOLD in between. This is an a-priori execution cadence
     # matched to the signal's speed, not a tuned parameter.
-    sized = _throttle_rebalance(sized, cfg)
+    sized = throttle_rebalance(sized, cfg)
 
     return sized.fillna(0.0)
 
 
-def _throttle_rebalance(weights: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+def throttle_rebalance(weights: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """Hold target weights constant except on an every-`rebalance_hours` grid."""
     rb_hours = float(cfg["risk"].get("rebalance_hours", 0) or 0)
     if rb_hours <= 0:

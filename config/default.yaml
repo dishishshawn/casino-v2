@@ -101,6 +101,17 @@ backtest:
   sharpe_haircut: 0.5        # display a ~50%-haircut "believed" Sharpe alongside raw
   oos_holdout_frac: 0.25     # final fraction reserved, untouched during research
 
+execution:
+  # Architecture-only. Everything here is INERT until a real broker adapter and a
+  # live/testnet data feed are wired on a host you control -- see EXECUTION.md.
+  # scripts/run_paper.py only replays the CACHED historical panel through the
+  # offline PaperBroker: a dry-run smoke test of the decision pipeline, not a
+  # connection to any exchange. No keys are read or required by this section.
+  min_trade_notional: 10.0     # skip dust-sized rebalance legs (pure fee bleed)
+  killswitch:
+    max_drawdown: 0.25         # halt new orders if equity drawdown hits this
+    max_stale_bars: 3          # halt if the data feed stops advancing
+
 validation:
   # Purge/embargo for non-IID financial labels (Lopez de Prado).
   label_horizon_bars: 24     # forward horizon of the signal's implicit label

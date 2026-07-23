@@ -3,6 +3,42 @@
 Living record of scope decisions so a fresh session has context without re-deriving it.
 Newest decisions on top.
 
+## Paper-trading architecture, no keys (2026-07-23)
+
+Built the venue-agnostic pieces of the paper-trading stage that don't need a real
+broker connection — see **EXECUTION.md** for the full writeup. Summary:
+
+- New `src/casino/execution/` package: `book.py` (reconstructs the per-instrument
+  target-weight panel for whatever `signal.kind` the gauntlet validated — the
+  missing bridge from the gauntlet's aggregate-return verdict to an actual
+  position), `orders.py` (weight diff -> order intents), `broker.py` (the `Broker`
+  Protocol every real venue adapter will implement), `paper_broker.py` (fully
+  offline simulated fills, same `CostModel` as the backtest), `killswitch.py`
+  (drawdown / stale-feed halt), `loop.py` (the decision tick + an offline replay
+  driver). `scripts/run_paper.py` runs it end to end.
+- **No network calls, no API keys, anywhere in this package.** Confirmed by
+  design and by running it (`python scripts/run_paper.py --synthetic`) entirely
+  offline in this sandbox.
+- Caught and fixed a real bug while building this: reconstructing the `blend`
+  strategy's risk-parity scalar at the weight level (needed to generate orders)
+  manufactured near-constant per-bar rebalancing the validated backtest never
+  costed, because the gauntlet applies that same scalar at the return-stream
+  level where continuous drift is free. Fixed by throttling the reconstructed
+  panel onto the same rebalance grid and only trading on bars where the weight
+  value itself changes — cut a synthetic-data smoke test from ~19,400 orders
+  over 2,640 ticks to ~1,520 (matching the ~24-bar rebalance cadence). Regression-
+  tested in `tests/test_execution.py`.
+- Along the way, fixed a second pre-existing gap: `--synthetic` mode never
+  generated a funding panel, so the actual validated `signal.kind='blend'` config
+  couldn't run offline at all (only bare `tsmom` could) — `data/synthetic.py` now
+  generates synthetic funding too.
+- **This does NOT change the GO/NO-GO verdict or make the strategy tradable.**
+  It's prep so that once the survivorship-bias-corrected gauntlet re-run (below)
+  confirms a GO, connecting a real venue is an adapter swap, not a redesign.
+  Real paper trading still requires: a `Broker` implementation against an
+  exchange testnet on a host you control, a live data feed, and — per NETWORK.md
+  — no keys in this environment.
+
 ## Survivorship-bias mitigation, step 1: populate `delisted_symbols` (2026-07-23)
 
 Before advancing the marginal GO to paper trading, the roadmap called for mitigating
