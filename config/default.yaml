@@ -23,7 +23,19 @@ data:
   cache_dir: "data_cache"
   # Externally-supplied delisted symbols to include (survivorship-bias mitigation).
   # ccxt only lists CURRENTLY-LIVE perps; leaving this empty biases momentum upward.
-  delisted_symbols: []
+  # Two real, well-documented top-tier delistings inside the 2021-2026 window:
+  #  - FTT (FTX Token): Binance/OKX delisted the perp after the Nov-2022 FTX collapse.
+  #  - LUNA (Terra): the original token collapsed ~99.99% in May 2022; the LUNA
+  #    ticker was later reused by the unrelated Terra 2.0 relaunch (old token
+  #    renamed LUNC), so `delisted_symbol_end` below caps the fetch at the
+  #    collapse date to avoid splicing two different assets under one symbol.
+  # Neither is resolvable via ccxt any more (not in any venue's live market
+  # list) -- universe.py falls back to Binance's static klines archive for
+  # symbols in this list. NOT an exhaustive fix (a rigorous one needs a paid
+  # delisted-coin database) but removes the two largest a-priori omissions.
+  delisted_symbols: ["FTT/USDT:USDT", "LUNA/USDT:USDT"]
+  delisted_symbol_end:
+    "LUNA/USDT:USDT": "2022-05-13T00:00:00Z"
 
 signal:
   # Strategy selector. 'blend' = causal equal-risk (risk-parity) mix of the listed

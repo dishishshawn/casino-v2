@@ -14,7 +14,7 @@ import warnings
 
 import pandas as pd
 
-from casino.data import ingest, storage
+from casino.data import ingest, price_dumps, storage
 
 
 def survivorship_warning(cfg: dict) -> str | None:
@@ -32,10 +32,17 @@ def survivorship_warning(cfg: dict) -> str | None:
 def ingest_universe(cfg: dict) -> dict[str, str]:
     """Ingest every symbol, trying venues in order until one has the data.
 
+    Genuinely delisted symbols are usually gone from every venue's live market
+    list, so ccxt can't resolve them at all -- for those (and only those), fall
+    back to Binance's static klines archive (price_dumps) once the live venues
+    are exhausted. `delisted_symbol_end` optionally caps how far a ticker's
+    history is pulled, for tickers later reassigned to an unrelated asset.
+
     Returns a mapping symbol -> venue that actually served it.
     """
     d = cfg["data"]
-    symbols = list(d["universe"]) + list(d.get("delisted_symbols") or [])
+    delisted = list(d.get("delisted_symbols") or [])
+    symbols = list(d["universe"]) + delisted
     served: dict[str, str] = {}
     for symbol in symbols:
         for venue in d["venues"]:
@@ -49,6 +56,14 @@ def ingest_universe(cfg: dict) -> dict[str, str]:
             except Exception as exc:  # noqa: BLE001 - venue fallback is intentional
                 warnings.warn(f"{venue} failed for {symbol}: {exc}", stacklevel=2)
                 continue
+        if symbol in served or symbol not in delisted:
+            continue
+        end = (d.get("delisted_symbol_end") or {}).get(symbol) or d["end"]
+        df = price_dumps.fetch_ohlcv_history(symbol, d["timeframe"], d["start"], end)
+        if len(df):
+            path = storage.ohlcv_path(d["cache_dir"], price_dumps.DUMP_VENUE, symbol, d["timeframe"])
+            storage.write_df(df, path)
+            served[symbol] = price_dumps.DUMP_VENUE
     return served
 
 
@@ -59,8 +74,9 @@ def load_price_panel(cfg: dict, field: str = "close") -> pd.DataFrame:
     """
     d = cfg["data"]
     symbols = list(d["universe"]) + list(d.get("delisted_symbols") or [])
-    # "synthetic" is searched last so real cached data always wins when present.
-    read_venues = list(d["venues"]) + ["synthetic"]
+    # "synthetic" is searched last so real cached data always wins when present;
+    # the dump archive is the only source for genuinely-delisted tickers.
+    read_venues = list(d["venues"]) + [price_dumps.DUMP_VENUE, "synthetic"]
     cols: dict[str, pd.Series] = {}
     for symbol in symbols:
         for venue in read_venues:

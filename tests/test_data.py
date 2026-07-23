@@ -38,7 +38,8 @@ def test_synthetic_panel_load(cfg):
     try:
         synthetic.write_synthetic_cache(cfg, n_bars=500, seed=1)
         panel = universe.load_price_panel(cfg)
-        assert panel.shape == (500, len(cfg["data"]["universe"]))
+        n_symbols = len(cfg["data"]["universe"]) + len(cfg["data"]["delisted_symbols"])
+        assert panel.shape == (500, n_symbols)
         assert (panel > 0).all().all()
     finally:
         shutil.rmtree("data_cache_unit", ignore_errors=True)

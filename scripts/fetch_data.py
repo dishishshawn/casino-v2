@@ -14,7 +14,7 @@ import argparse
 import warnings
 
 from casino.config import load_config
-from casino.data import universe
+from casino.data import funding_dumps, universe
 
 
 def main() -> None:
@@ -43,6 +43,13 @@ def main() -> None:
     for sym in missing:
         print(f"  MISS {sym}")
     print(f"Done: {len(served)}/{len(cfg['data']['universe'])} served.")
+
+    # Deep funding history (carry sleeve needs multi-year data ccxt's live funding
+    # endpoints don't retain) for the whole universe, including delisted symbols.
+    print("Fetching deep funding history from data.binance.vision ...")
+    counts = funding_dumps.ingest_funding_dumps(cfg)
+    for sym, n in counts.items():
+        print(f"  {'OK' if n else 'MISS'}  {sym:24s} {n} funding rows")
 
 
 if __name__ == "__main__":

@@ -77,9 +77,11 @@ Runs are hashed (`casino.config.config_hash`) for reproducibility.
 ## Known limitations (called out honestly)
 
 - **Survivorship bias.** ccxt lists only currently-live perps, which biases crypto
-  momentum **upward** — the single most common way crypto backtests mislead. Populate
-  `config.data.delisted_symbols` with an external delisted list to mitigate; until then
-  every report prints a loud warning.
+  momentum **upward** — the single most common way crypto backtests mislead.
+  `config.data.delisted_symbols` now carries two real, well-documented delistings
+  (FTT, LUNA — see ROADMAP.md) fetched via `data/price_dumps.py`'s static-archive
+  fallback, but this is a partial mitigation, not exhaustive; a rigorous fix needs
+  a paid delisted-coin database. The loud warning only fires when the list is empty.
 - **Network egress.** Live data fetch requires an environment whose egress policy
   allows the exchange domains (Binance/Bybit/OKX). Where that is blocked, use
   `--synthetic` to exercise the full pipeline offline. Synthetic mode is a pipeline

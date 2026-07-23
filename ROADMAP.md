@@ -3,6 +3,40 @@
 Living record of scope decisions so a fresh session has context without re-deriving it.
 Newest decisions on top.
 
+## Survivorship-bias mitigation, step 1: populate `delisted_symbols` (2026-07-23)
+
+Before advancing the marginal GO to paper trading, the roadmap called for mitigating
+survivorship bias first. Done, partially:
+
+- **`config.data.delisted_symbols`** now has two real, well-documented top-tier
+  delistings inside the 2021-2026 window: **FTT** (FTX Token — Binance/OKX delisted
+  the perp after the Nov-2022 FTX collapse) and **LUNA** (Terra's original token
+  collapsed ~99.99% in May 2022; the ticker was later reused by the unrelated Terra
+  2.0 relaunch, so `delisted_symbol_end` caps the fetch at the collapse date to avoid
+  splicing two different assets under one symbol).
+- Neither is resolvable via ccxt any more (gone from every venue's live market
+  list), so `universe.ingest_universe` now falls back to a new module,
+  **`data/price_dumps.py`**, which pulls historical klines from Binance's static
+  `data.binance.vision` archive — same mechanism `funding_dumps.py` already uses for
+  deep funding history, just the klines endpoint. `load_price_panel` reads it back
+  under the sentinel venue `binancevision`.
+- Fixed a latent gap while here: `scripts/fetch_data.py` never actually called
+  `funding_dumps.ingest_funding_dumps`, so the documented one-shot "fetch then run
+  the gauntlet" flow was silently missing multi-year funding history unless run by
+  hand. Now wired in.
+- **Honest caveat: this is NOT an exhaustive fix.** Two candidate coins were
+  identified by researching real large-cap delisting events (not cherry-picked for
+  effect); a rigorous fix still needs a paid delisted-coin database (Tardis/
+  Coinglass/Amberdata/CoinAPI) to catch smaller-cap delistings this a-priori pass
+  can't see. It removes the two largest, best-documented omissions, not all of them.
+- **Not yet done: re-running the gauntlet.** This session's network egress blocks
+  the exchange/CDN domains (confirmed: `data.binance.vision`, `www.okx.com`,
+  `fapi.binance.com` all 403 through the sandbox proxy). Need an egress-enabled
+  session (see NETWORK.md) to actually run `python scripts/fetch_data.py` then
+  `python scripts/run_gauntlet.py` and get the re-confirmed verdict. **The GO from
+  2026-07-22 should be treated as unconfirmed until that re-run happens** — it may
+  turn from marginal-GO to NO-GO once these two real drawdown events are included.
+
 ## Current status (2026-07-22)
 
 - **Built & pushed:** cost-aware research + validation engine (signal → risk/sizing → cost
